@@ -2,7 +2,7 @@
  * adder.c - a minimal CGI program that adds two numbers together
  */
 /* $begin adder */
-#include "csapp.h"
+#include "../csapp.h"
 
 int main(void)
 {
@@ -17,8 +17,8 @@ int main(void)
     *p = '\0'; // '&' 문자를 '\0'으로 바꿔서 buf를 두 개의 문자열로 나눔, 예: "arg1=123&arg2=456" -> "arg1=123\0arg2=456"
     strcpy(arg1, buf); // arg1에 첫 번째 인자를 저장, 예: "arg1=123"을 arg1에 저장
     strcpy(arg2, p + 1);  // arg2에 두 번째 인자를 저장, 예: "arg2=456"을 arg2에 저장
-    n1 = atoi(arg1);
-    n2 = atoi(arg2);
+    n1 = atoi(strchr(arg1, '=') + 1);
+    n2 = atoi(strchr(arg2, '=') + 1);
   }
 
   /* Make the response body */
@@ -30,8 +30,9 @@ int main(void)
   sprintf(content + strlen(content), "Thanks for visiting!\r\n");
 
   /* Generate the HTTP response */
-  printf("Content-type: text/html\r\n");
+  printf("Connection: close\r\n");
   printf("Content-length: %d\r\n", (int)strlen(content));
+  printf("Content-type: text/html\r\n\r\n");
   printf("\r\n");
   printf("%s", content);
   fflush(stdout);
