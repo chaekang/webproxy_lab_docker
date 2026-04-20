@@ -128,10 +128,10 @@ void read_requesthdrs(rio_t *rp)
   rio_readlineb(rp, buf, MAXLINE);  // 요청 헤더를 한 줄씩 읽어서 buf에 저장
   while (strcmp(buf, "\r\n"))  // 요청 헤더의 끝을 나타내는 빈 줄이 나올 때까지 반복, 요청 헤더는 \r\n으로 끝나기 때문에, strcmp(buf, "\r\n")가 0이 될 때까지 반복
   {
-    rio_readlineb(rp, buf, MAXLINE);  // 요청 헤더를 한 줄씩 읽어서 buf에 저장, 요청 헤더는 클라이언트가 보낸 추가적인 정보로, 이 서버에서는 사용하지 않기 때문에 읽어서 버림
     printf("%s", buf);
+    rio_readlineb(rp, buf, MAXLINE);  // 요청 헤더를 한 줄씩 읽어서 buf에 저장, 요청 헤더는 클라이언트가 보낸 추가적인 정보로, 이 서버에서는 사용하지 않기 때문에 읽어서 버림
   }
-  return;
+  printf("\n");
 }
 
 // URI를 파싱해서 filename과 cgiargs에 저장하는 함수, is_static을 반환, 1: 정적 콘텐츠, 0: 동적 콘텐츠
