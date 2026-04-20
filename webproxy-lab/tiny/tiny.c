@@ -186,11 +186,17 @@ void serve_static(int fd, char *filename, int filesize)
   Rio_writen(fd, buf, strlen(buf));  // HTTP 응답 헤더 전송
 
   srcfd = Open(filename, O_RDONLY, 0); // 요청된 파일을 읽기 전용으로 열어서 srcfd에 저장
-  srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd,0); // 요청된 파일의 내용을 메모리에 매핑해서 srcp에 저장
+  srcp = malloc(filesize); // 요청된 파일의 크기만큼 메모리를 할당해서 srcp에 저장
+  if (srcp == NULL) // 메모리 할당에 실패했다면, 에러 반환
+  {
+    clienterror(fd, filename, "500", "Internal Server Error", "Tiny couldn't allocate memory");
+    return;
+  }
+  Rio_readn(srcfd, srcp, filesize); // 요청된 파일의 내용을 srcp에 읽어옴
   Close(srcfd); // 파일 디스크립터 닫기
 
   Rio_writen(fd, srcp, filesize); // 요청된 파일의 내용을 클라이언트로 전송
-  Munmap(srcp, filesize); // 메모리 매핑 해제
+  free(srcp); // 할당한 메모리 해제
 }
 
 void get_filetype(char *filename, char *filetype)
