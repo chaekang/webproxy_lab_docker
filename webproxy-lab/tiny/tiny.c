@@ -201,6 +201,10 @@ void get_filetype(char *filename, char *filetype)
     strcpy(filetype, "image/gif");  // filetype에 "image/gif" 저장
   else if (strstr(filename, ".jpg"))  // filename에 ".jpg"가 포함되어 있다면, JPEG 파일로 간주
     strcpy(filetype, "image/jpeg");  // filetype에 "image/jpeg" 저장
+  else if (strstr(filename, ".mpg"))
+    strcpy(filetype, "video/mpeg");
+  else if (strstr(filename, ".mpeg"))
+    strcpy(filetype, "video/mpeg");
   else  // 그 외의 경우에는 일반 텍스트 파일로 간주
     strcpy(filetype, "text/plain");  // filetype에 "text/plain" 저장
 }
