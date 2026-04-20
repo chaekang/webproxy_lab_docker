@@ -6,14 +6,15 @@
  * Updated 11/2019 droh
  *   - Fixed sprintf() aliasing issue in serve_static(), and clienterror().
  */
+#include "stdbool.h"
 #include "csapp.h"
 
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
 int parse_uri(char *uri, char *filename, char *cgiargs);
-void serve_static(int fd, char *filename, int filesize);
+void serve_static(int fd, char *filename, int filesize, bool ishead);
 void get_filetype(char *filename, char *filetype);
-void serve_dynamic(int fd, char *filename, char *cgiargs);
+void serve_dynamic(int fd, char *filename, char *cgiargs, bool ishead);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 int main(int argc, char **argv)
@@ -52,6 +53,7 @@ void doit (int fd)
   char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];  // buf: 클라이언트로부터 읽어온 요청 라인을 저장할 버퍼, method: HTTP 메서드, uri: 요청된 URI, version: HTTP 버전
   char filename[MAXLINE], cgiargs[MAXLINE];  // filename: 요청된 파일의 이름, cgiargs: CGI 프로그램에 전달할 인자들을 저장할 버퍼
   rio_t rio;  // rio: 클라이언트로부터 읽어온 데이터를 저장할 버퍼와 관련된 정보를 담는 구조체
+  bool ishead = false;
 
   rio_readinitb(&rio, fd);  // rio 구조체 초기화, 왜냐하면 클라이언트로부터 데이터를 읽어오기 전에 버퍼와 관련된 정보를 초기화해야 하기 때문
   if (!Rio_readlineb(&rio, buf, MAXLINE))  // 클라이언트로부터 요청 라인을 읽어오는데 실패한다면, 클라이언트가 연결을 끊었다는 의미이므로 함수 종료
@@ -64,10 +66,15 @@ void doit (int fd)
   sscanf(buf, "%s %s %s", method, uri, version);  // 메모리에 들어있는 문자열에서 읽음(scanf: 키보드 입력), buf에 있는 문자열을 읽어서 method uri version에 넣음
   //소켓에서 들어오는 데이터가 "GET /home.html HTTP/1.0\r\n"처럼 한 줄 문자열 전체로 들어온다. 파싱되어 있지 않기 때문에 sscanf로 method, uri, version을 구분해서 저장해야 한다.
 
-  if (strcasecmp(method, "GET"))  // 문자열을 비교해서 method가 get이 아니면
+  if (strcasecmp(method, "GET") && strcasecmp(method, "HEAD"))  // 문자열을 비교해서 method가 get이 아니면
   {
     clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");  // 에러 반환, 501: 구현되지 않은 메서드
     return;
+  }
+
+  if (!strcasecmp(method, "HEAD"))
+  {
+    ishead = true;
   }
 
   read_requesthdrs(&rio);  // 요청 헤더를 읽어서 무시, 클라이언트가 보낸 요청 헤더는 이 서버에서 사용하지 않기 때문에 읽어서 버림, 왜냐하면 이 서버는 GET 메서드만 지원하고, 요청 헤더는 정적 콘텐츠와 동적 콘텐츠를 구분하는 데 필요하지 않기 때문
@@ -86,7 +93,7 @@ void doit (int fd)
       clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
       return;
     }
-    serve_static(fd, filename, sbuf.st_size);  // 정적 콘텐츠 제공
+    serve_static(fd, filename, sbuf.st_size, ishead);  // 정적 콘텐츠 제공
   }
   else  // 요청된 콘텐츠가 동적 콘텐츠라면
   {
@@ -95,7 +102,7 @@ void doit (int fd)
       clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run the CGI program");
       return;
     }
-    serve_dynamic(fd, filename, cgiargs);  // 동적 콘텐츠 제공
+    serve_dynamic(fd, filename, cgiargs, ishead);  // 동적 콘텐츠 제공
   }
 }
 
@@ -170,7 +177,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
   }
 }
 
-void serve_static(int fd, char *filename, int filesize)
+void serve_static(int fd, char *filename, int filesize, bool ishead)
 {
   int srcfd;  // srcfd: 요청된 파일을 열어서 얻은 파일 디스크립터
   char *srcp, filetype[MAXLINE], buf[MAXBUF];  // srcp: 요청된 파일의 내용을 메모리에 매핑한 포인터, filetype: 파일의 MIME 타입을 저장할 버퍼, buf: HTTP 응답 라인과 헤더를 저장할 버퍼
@@ -184,6 +191,11 @@ void serve_static(int fd, char *filename, int filesize)
   Rio_writen(fd, buf, strlen(buf));  // HTTP 응답 헤더 전송
   snprintf(buf, MAXBUF, "Content-type: %s\r\n\r\n", filetype);  // HTTP 응답 헤더 저장, 예: "Content-type: text/html\r\n\r\n", \r\n\r\n: 헤더와 본문을 구분하는 빈 줄
   Rio_writen(fd, buf, strlen(buf));  // HTTP 응답 헤더 전송
+
+  if (ishead)
+  {
+    return;
+  }
 
   srcfd = Open(filename, O_RDONLY, 0); // 요청된 파일을 읽기 전용으로 열어서 srcfd에 저장
   srcp = malloc(filesize); // 요청된 파일의 크기만큼 메모리를 할당해서 srcp에 저장
@@ -215,7 +227,7 @@ void get_filetype(char *filename, char *filetype)
     strcpy(filetype, "text/plain");  // filetype에 "text/plain" 저장
 }
 
-void serve_dynamic(int fd, char *filename, char *cgiargs)
+void serve_dynamic(int fd, char *filename, char *cgiargs, bool ishead)
 {
   char buf[MAXLINE], *emptylist[] = {NULL};  // buf: HTTP 응답 라인과 헤더를 저장할 버퍼, emptylist: CGI 프로그램에 전달할 인자 리스트, CGI 프로그램은 인자 리스트가 필요하지만 이 서버에서는 인자를 전달하지 않기 때문에 빈 리스트로 초기화
 
@@ -223,6 +235,11 @@ void serve_dynamic(int fd, char *filename, char *cgiargs)
   Rio_writen(fd, buf, strlen(buf));  // HTTP 응답 라인 전송
   sprintf(buf, "Server: Tiny Web Server\r\n");  // HTTP 응답 헤더 저장, 예: "Server: Tiny Web Server\r\n"
   Rio_writen(fd, buf, strlen(buf));  // HTTP 응답 헤더 전송
+
+  if (ishead)
+  {
+    return;
+  }
 
   if (Fork() == 0) // 자식 프로세스에서 CGI 프로그램 실행, 왜냐하면 CGI 프로그램이 클라이언트와 통신하기 위해서는 별도의 프로세스에서 실행되어야 하기 때문
   {
